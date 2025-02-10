@@ -1,101 +1,45 @@
 #include "stdio.h"
-#include <stdarg.h>
 
-// External UART functions declared from existing code
-extern void uart_putc(char c);
-extern char uart_getc(void);
-extern void uart_puts(const char* s);
-extern void uart_gets_input(char* buffer, int max_length);
-extern int uart_atoi(const char* s);
-extern void uart_itoa(int num, char* buffer);
+#define UART0_BASE  0x101f1000
+#define UART_DR     0x00
+#define UART_FR     0x18
+#define UART_FR_TXFF 0x20
+#define UART_FR_RXFE 0x10
 
-// Buffer for number conversion
-static char num_buffer[32];
+volatile unsigned int * const UART0 = (unsigned int *)UART0_BASE;
 
-// Function to print a formatted string
-void PRINT(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    
-    while (*format != '\0') {
-        if (*format == '%') {
-            format++;
-            switch (*format) {
-                case 'd': {
-                    int num = va_arg(args, int);
-                    uart_itoa(num, num_buffer);
-                    uart_puts(num_buffer);
-                    break;
-                }
-                case 'f': {
-                    // Simple float implementation (prints 2 decimal places)
-                    double num = va_arg(args, double);
-                    int whole = (int)num;
-                    int decimal = (int)((num - whole) * 100);
-                    if (decimal < 0) decimal = -decimal;
-                    
-                    uart_itoa(whole, num_buffer);
-                    uart_puts(num_buffer);
-                    uart_putc('.');
-                    uart_itoa(decimal, num_buffer);
-                    if (decimal < 10) uart_putc('0');
-                    uart_puts(num_buffer);
-                    break;
-                }
-                case 's': {
-                    char* str = va_arg(args, char*);
-                    uart_puts(str);
-                    break;
-                }
-                default:
-                    uart_putc(*format);
-            }
-        } else {
-            uart_putc(*format);
-        }
-        format++;
-    }
-    
-    va_end(args);
+// Enviar un solo carácter por UART
+void uart_putc(char c) {
+    while (UART0[UART_FR / 4] & UART_FR_TXFF);
+    UART0[UART_DR / 4] = c;
 }
 
-// Function to read formatted input
-int READ(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    char buffer[16];
-    int items_read = 0;
-    
-    while (*format != '\0') {
-        if (*format == '%') {
-            format++;
-            switch (*format) {
-                case 'd': {
-                    int* num_ptr = va_arg(args, int*);
-                    uart_gets_input(buffer, sizeof(buffer));
-                    *num_ptr = uart_atoi(buffer);
-                    items_read++;
-                    break;
-                }
-                case 'f': {
-                    float* float_ptr = va_arg(args, float*);
-                    uart_gets_input(buffer, sizeof(buffer));
-                    // Simple float conversion
-                    *float_ptr = (float)uart_atoi(buffer);
-                    items_read++;
-                    break;
-                }
-                case 's': {
-                    char* str = va_arg(args, char*);
-                    uart_gets_input(str, 16); // Fixed size for simplicity
-                    items_read++;
-                    break;
-                }
-            }
-        }
-        format++;
-    }
-    
-    va_end(args);
-    return items_read;
+// Recibir un solo carácter por UART
+char uart_getc() {
+    while (UART0[UART_FR / 4] & UART_FR_RXFE);
+    return (char)(UART0[UART_DR / 4] & 0xFF);
 }
+
+// Enviar una cadena por UART
+void uart_puts(const char *s) {
+    while (*s) {
+        uart_putc(*s++);
+    }
+}
+
+// Recibir una cadena desde UART
+void uart_gets(char *buffer, int max_length) {
+    int i = 0;
+    char c;
+    while (i < max_length - 1) { // Deja espacio para el terminador nulo
+        c = uart_getc();
+        if (c == '\n' || c == '\r') {
+            uart_putc('\n'); // Eco de nueva línea
+            break;
+        }
+        uart_putc(c); // Eco del carácter ingresado
+        buffer[i++] = c;
+    }
+    buffer[i] = '\0'; // Terminar cadena
+}
+

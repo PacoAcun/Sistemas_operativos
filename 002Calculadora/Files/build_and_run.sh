@@ -5,19 +5,22 @@ set -e
 
 # Remove previous compiled objects and binaries
 echo "Cleaning up previous build files..."
-rm -f root.o main.o calculadora.elf calculadora.bin
+rm -f root.o main.o stdio.o string.o calculadora.elf calculadora.bin
 
 echo "Assembling startup.s..."
 arm-none-eabi-as -o root.o root.s
 
-echo "Compiling stdio.c..."
-arm-none-eabi-gcc -c -o stdio.o stdio.c
-
 echo "Compiling main.c..."
 arm-none-eabi-gcc -c -o main.o main.c
 
+echo "Compiling stdio.c..."
+arm-none-eabi-gcc -c -o stdio.o stdio.c
+
+echo "Compiling string.c..."
+arm-none-eabi-gcc -c -o string.o string.c
+
 echo "Linking object files..."
-arm-none-eabi-ld -T linker.ld -o calculadora.elf root.o main.o
+arm-none-eabi-ld -T linker.ld -o calculadora.elf root.o main.o stdio.o string.o
 
 echo "Converting ELF to binary..."
 arm-none-eabi-objcopy -O binary calculadora.elf calculadora.bin
