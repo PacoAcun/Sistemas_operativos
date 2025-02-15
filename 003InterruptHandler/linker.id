@@ -2,27 +2,22 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x00010000;
-    
-    .text : {
-        *(.vectors)
-        *(.text*)
+    . = 0x00010000; /* Starting address in RAM */
+
+    .text :
+    {
+        *(.text*)  /* Incluye todas las secciones .text de los archivos objeto */
     }
-    
-    .rodata : {
-        *(.rodata*)
+
+    .data : AT (ADDR(.text) + SIZEOF(.text))
+    {
+        *(.data*)  /* Incluye todas las secciones .data de los archivos objeto */
     }
-    
-    .data : {
-        *(.data*)
+
+    .bss :
+    {
+        __bss_start = .;
+        *(.bss*)   /* Incluye todas las secciones .bss de los archivos objeto */
+        __bss_end = .;
     }
-    
-    . = ALIGN(4);
-    __bss_start = .;
-    .bss : {
-        *(.bss*)
-        *(COMMON)
-    }
-    . = ALIGN(4);
-    __bss_end = .;
 }

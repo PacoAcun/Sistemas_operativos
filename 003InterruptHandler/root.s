@@ -1,34 +1,57 @@
-// root.s
-.section .vectors, "ax"
 .global _start
+.global irq_handler
 
+.section .text
+
+/* 
+ * Punto de entrada (_start).
+ * Ajustamos SP, enviamos un caracter por UART como test, 
+ * y llamamos a main().
+ */
 _start:
-    b reset_handler    // Reset
-    b .               // Undefined instruction
-    b .               // Software interrupt
-    b .               // Prefetch abort
-    b .               // Data abort
-    b .               // Reserved
-    b .               // IRQ
-    b .               // FIQ
+    LDR sp, =0x8000
 
+    /* Escribir 'Z' en la UART como prueba rápida */
+    LDR r1, =0x101f1000  @ Base de UART0 en VersatilePB
+    MOV r2, #'Z'
+    STR r2, [r1, #0x00]
+
+    /* Llamar a main() */
+    BL main
+
+    /* Si main() termina, entrar a un bucle infinito */
+    B .
+
+/* Relleno de handlers para excepciones (stubs) */
 reset_handler:
-    // Set up stack pointer
-    ldr sp, =0x18000
+    B reset_handler
 
-    // Clear BSS section
-    ldr r0, =__bss_start
-    ldr r1, =__bss_end
-    mov r2, #0
-bss_clear:
-    cmp r0, r1
-    beq bss_clear_done
-    str r2, [r0], #4
-    b bss_clear
-bss_clear_done:
+undefined_handler:
+    B undefined_handler
 
-    // Jump to main
-    bl main
+swi_handler:
+    B swi_handler
 
-    // Loop forever if main returns
-1:  b 1b
+prefetch_handler:
+    B prefetch_handler
+
+abort_handler:
+    B abort_handler
+
+fiq_handler:
+    B fiq_handler
+
+/*
+ * irq_handler:
+ * - Ajustamos LR para que apunte a la instrucción que causó la IRQ,
+ * - Guardamos registros en stack,
+ * - Llamamos a la rutina de C (timer_irq_handler),
+ * - Restauramos registros y retornamos de IRQ.
+ */
+irq_handler:
+    SUB     lr, lr, #4
+    STMFD   sp!, {r0-r12, lr}
+    BL      timer_irq_handler
+    LDMFD   sp!, {r0-r12, lr}
+    SUBS    pc, lr, #4
+
